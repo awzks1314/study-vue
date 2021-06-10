@@ -114,6 +114,13 @@ setup() {
 }
 ```
 
+##### isReactive
+
+检查一个对象是否是由`reactive`创建的响应式代理
+
+如果这个代理是由`readonly`创建的，但是又被`reactive`创建的另一个代理包裹了一层，那么同样
+也会返回true
+
 # ref
 
 `ref()`函数用来根据给定的值创建一个**响应式的数据对象**，
@@ -275,6 +282,11 @@ console.log(count.value) // 输出 8
 ```
 
 # watch
+
+对比`watchEffect`，`watch`允许我们：
+- 懒执行副作用
+- 更具体地说明什么状态的改变会触发侦听器重新运行
+- 访问侦听状态变化前后的值
 
 `watch()`函数用来监视某些数据项的变化，从而触发某些特定的操作：
 
@@ -834,6 +846,10 @@ h(
 
 `new Proxy(target,handler)`
 
+##### isProxy
+
+检查一个对象是否是由`reactive`或者`readonly`方法创建的代理
+
 # 声明响应式状态
 
 要为JavaScript对象创建响应式状态，可以使用`reactive`方法：
@@ -905,12 +921,88 @@ console.log(count.value) // 1
 例如，当我们有一个被 provide 的响应式对象时，我们不想让它在注入的时候被改变。
 为此，我们可以基于原始对象创建一个只读的 Proxy 对象：
 
+```js
+const original = reactive({ count: 0 })
 
-# watch
+const copy = readonly(original)
 
-- 懒执行副作用
-- 更具体地说明什么状态应该触发侦听器重新运行
-- 访问侦听状态变化前后的值
+watchEffect(() => {
+  // 依赖追踪
+  console.log(copy.count)
+})
+
+// original 上的修改会触发 copy 上的侦听
+original.count++
+
+// 无法修改 copy 并会被警告
+copy.count++ // warning!
+```
+##### sReadonly
+检查一个对象是否是由`readonly`，创建的只读代理。
+
+
+# watchEffect
+
+立即执行传入的一个函数，并响应式追踪其依赖，并在其依赖变更时重新运行该函数。
+
+```js
+const count = ref(0)
+
+watchEffect(() => console.log(count.value))
+// -> 打印出 0
+
+setTimeout(() => {
+  count.value++
+  // -> 打印出 1
+}, 100)
+```
+
+##### 停止侦听
+
+当`watchEffect`在组件的`setup()`函数或生命周期勾子被调用时，侦听器会被链接到该组件
+的生命周期，并在组件卸载时自动停止。
+
+在一些情况下，也可以显示调用返回值以停止侦听：
+
+```js
+const stop = watchEffect(() => {
+  /* ... */
+})
+
+// 之后
+stop()
+```
+
+##### 清除副作用
+
+有时副作用函数会执行一些异步的副作用，这些响应需要在其失效时清除(即完成之前状态已经改变了)。
+所以侦听副作用传入的函数可以接受一个`onInvalidate`函数作入参，用来注册清除失效时的回调。
+当一下情况发生时，这个**失效回调**会被触发：
+- 副作用即将重新执行时
+- 侦听器被停止(如果在`setup()`或生命周期勾子函数中使用了`watchEffext`，则在卸载组件时)
+
+```js
+watchEffect((onInvalidate) => {
+  const token = performAsyncOperation(id.value)
+  onInvalidate(() => {
+    // id 改变时 或 停止侦听时
+    // 取消之前的异步操作
+    token.cancel()
+  })
+})
+```
+
+我们之所以是通过传入一个函数去注册失效回调，而不是从回调返回它，是因为返回值对于异步错误处理
+很重要。
+
+在执行数据请求时，副作用函数往往是一个异步函数。
+
+```js
+const data = ref(null)
+watchEffect(async () => {
+  data.value = await fetchData(props.id)
+})
+```
 
 # v-model
 
