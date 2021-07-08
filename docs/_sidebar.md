@@ -14,6 +14,8 @@
 	* [使用](./docs/sass/使用.md)
 * vue
 	* [vue3.0新特性](./docs/vue.md)
+* 20天「算法」刷题计划
+	* [二分查找](./docs/arithmetic/oneDay.md)
 
 	
   
